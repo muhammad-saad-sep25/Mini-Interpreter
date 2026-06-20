@@ -1,5 +1,3 @@
-# lexer.py
-
 # Token types
 INTEGER = 'INTEGER'
 PLUS = 'PLUS'
@@ -22,9 +20,11 @@ LT = 'LT'  # <
 GT = 'GT'  # >
 LE = 'LE'  # <=
 GE = 'GE'  # >=
+AND = 'AND' # logical and
+OR = 'OR'   # logical or
+NOT = 'NOT' # logical not
 EOF = 'EOF'
 
-# Token class
 class Token:
     def __init__(self, type, value):
         self.type = type
@@ -33,14 +33,12 @@ class Token:
     def __repr__(self):
         return f"{self.type}:{self.value}"
 
-
 class Lexer:
     def __init__(self, text):
         self.text = text
         self.pos = 0
         self.current_char = self.text[self.pos] if self.text else None
 
-    # Move forward
     def advance(self):
         self.pos += 1
         if self.pos >= len(self.text):
@@ -55,12 +53,10 @@ class Lexer:
         else:
             return self.text[peek_pos]
 
-    # Skip spaces
     def skip_whitespace(self):
         while self.current_char and self.current_char.isspace():
             self.advance()
 
-    # Read numbers
     def integer(self):
         result = ''
         while self.current_char and self.current_char.isdigit():
@@ -68,7 +64,6 @@ class Lexer:
             self.advance()
         return int(result)
 
-    # Read identifiers (variables or print)
     def identifier(self):
         result = ''
         while self.current_char and self.current_char.isalnum():
@@ -79,14 +74,15 @@ class Lexer:
             "print": PRINT,
             "if": IF,
             "else": ELSE,
-            "while": WHILE
+            "while": WHILE,
+            "and": AND,
+            "or": OR,
+            "not": NOT
         }
         return Token(keywords.get(result, ID), result)
 
-    # Main lexer function
     def get_next_token(self):
         while self.current_char:
-
             if self.current_char.isspace():
                 self.skip_whitespace()
                 continue

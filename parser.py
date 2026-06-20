@@ -1,35 +1,50 @@
-# parser.py
-
 from lexer import *
 
-# AST Nodes
 class BinOp:
     def __init__(self, left, op, right):
         self.left = left
         self.op = op
         self.right = right
 
+    def to_lll(self, label_count=[0]):
+        return self.left.to_lll(label_count) + "\n" + self.right.to_lll(label_count) + f"\n{self.op.type}"
+
 class Num:
     def __init__(self, value):
         self.value = value
+
+    def to_lll(self, label_count=[0]):
+        return f"PUSH {self.value}"
 
 class UnaryOp:
     def __init__(self, op, expr):
         self.op = op
         self.expr = expr
 
+    def to_lll(self, label_count=[0]):
+        return self.expr.to_lll(label_count) + f"\n{self.op.type}"
+
 class Var:
     def __init__(self, name):
         self.name = name
+
+    def to_lll(self, label_count=[0]):
+        return f"LOAD {self.name}"
 
 class Assign:
     def __init__(self, left, right):
         self.left = left
         self.right = right
 
+    def to_lll(self, label_count=[0]):
+        return self.right.to_lll(label_count) + f"\nSTORE {self.left.name}"
+
 class Print:
     def __init__(self, expr):
         self.expr = expr
+
+    def to_lll(self, label_count=[0]):
+        return self.expr.to_lll(label_count) + "\nPRINT"
 
 class If:
     def __init__(self, condition, true_branch, false_branch=None):
@@ -37,17 +52,47 @@ class If:
         self.true_branch = true_branch
         self.false_branch = false_branch
 
+    def to_lll(self, label_count=[0]):
+        label_count[0] += 1
+        l1 = f"L{label_count[0]}"
+        label_count[0] += 1
+        l2 = f"L{label_count[0]}"
+        
+        cond = self.condition.to_lll(label_count)
+        true_b = self.true_branch.to_lll(label_count)
+        
+        if self.false_branch:
+            false_b = self.false_branch.to_lll(label_count)
+            return f"{cond}\nJZ {l1}\n{true_b}\nJMP {l2}\n{l1}:\n{false_b}\n{l2}:"
+        else:
+            return f"{cond}\nJZ {l1}\n{true_b}\n{l1}:"
+
 class While:
     def __init__(self, condition, body):
         self.condition = condition
         self.body = body
 
+    def to_lll(self, label_count=[0]):
+        label_count[0] += 1
+        start_label = f"L{label_count[0]}"
+        label_count[0] += 1
+        end_label = f"L{label_count[0]}"
+        
+        cond = self.condition.to_lll(label_count)
+        body = self.body.to_lll(label_count)
+        
+        return f"{start_label}:\n{cond}\nJZ {end_label}\n{body}\nJMP {start_label}\n{end_label}:"
+
 class Block:
     def __init__(self, statements):
         self.statements = statements
 
+    def to_lll(self, label_count=[0]):
+        return "\n".join(s.to_lll(label_count) for s in self.statements)
+
 class NoOp:
-    pass
+    def to_lll(self, label_count=[0]):
+        return "NOOP"
 
 class Parser:
     def __init__(self, lexer):
@@ -60,7 +105,6 @@ class Parser:
         else:
             raise Exception(f"Syntax Error: Expected {token_type}, got {self.current_token.type}")
 
-    # factor → (+ | -) factor | INTEGER | ID | ( expr )
     def factor(self):
         token = self.current_token
 
@@ -83,7 +127,6 @@ class Parser:
             return node
         raise Exception(f"Syntax Error: Unexpected token {token.type} in factor")
 
-    # term → factor (* or /)
     def term(self):
         node = self.factor()
         while self.current_token.type in (MUL, DIV):
@@ -92,7 +135,6 @@ class Parser:
             node = BinOp(node, token, self.factor())
         return node
 
-    # arithmetic_expr → term (+ or -)
     def arithmetic_expr(self):
         node = self.term()
         while self.current_token.type in (PLUS, MINUS):
@@ -101,8 +143,7 @@ class Parser:
             node = BinOp(node, token, self.term())
         return node
 
-    # expr → arithmetic_expr (comparison arithmetic_expr)?
-    def expr(self):
+    def comparison(self):
         node = self.arithmetic_expr()
         if self.current_token.type in (EQ, NE, LT, GT, LE, GE):
             token = self.current_token
@@ -110,7 +151,29 @@ class Parser:
             node = BinOp(node, token, self.arithmetic_expr())
         return node
 
-    # statement → assignment | print | if | while | block
+    def logical_not(self):
+        if self.current_token.type == NOT:
+            token = self.current_token
+            self.eat(NOT)
+            return UnaryOp(token, self.logical_not())
+        return self.comparison()
+
+    def logical_and(self):
+        node = self.logical_not()
+        while self.current_token.type == AND:
+            token = self.current_token
+            self.eat(AND)
+            node = BinOp(node, token, self.logical_not())
+        return node
+
+    def expr(self):
+        node = self.logical_and()
+        while self.current_token.type == OR:
+            token = self.current_token
+            self.eat(OR)
+            node = BinOp(node, token, self.logical_and())
+        return node
+
     def statement(self):
         if self.current_token.type == ID:
             left = Var(self.current_token.value)

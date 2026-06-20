@@ -78,6 +78,16 @@ def run_tui():
             console.print(visualize_ast(tree_root))
             console.print("")
 
+            # 2.5 Show the LLL (Low Level Language / Intermediate Code)
+            console.print("[bold yellow]LLL (Intermediate Code):[/bold yellow]")
+            lll_code = tree_root.to_lll()
+            console.print(f"[white]{lll_code}[/white]\n")
+
+            # 2.6 Show the Bits (Binary Representation)
+            console.print("[bold cyan]Bits (Binary Representation):[/bold cyan]")
+            binary_bits = ' '.join(format(ord(c), '08b') for c in lll_code)
+            console.print(f"[green]{binary_bits}[/green]\n")
+
             # 3. Interpret the tree
             interpreter.parser = parser # Not really needed if we call visit directly, but keep for consistency
             interpreter.visit(tree_root)
